@@ -38,6 +38,6 @@ trait IsNotProductionEnvironment
             throw new ProductionEnvironmentException(
                 'Benchmarks are disabled. Set BENCHMARK_ENABLED=true in your .env file to enable.'
             );
+        }
     }
-}
 }
