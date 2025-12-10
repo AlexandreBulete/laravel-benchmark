@@ -29,7 +29,7 @@ trait UsesBenchmarkDatabase
         // Verify the benchmark connection exists
         if (! config("database.connections.{$connection}")) {
             throw new \RuntimeException(
-                "Benchmark database connection '{$connection}' is not configured. " .
+                "Benchmark database connection '{$connection}' is not configured. ".
                 'Please run: php artisan benchmark:install'
             );
         }

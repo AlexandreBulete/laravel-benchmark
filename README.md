@@ -1,6 +1,6 @@
 # Laravel Benchmark
 
-A comprehensive benchmark system for Laravel applications. Safely test performance with isolated database, automatic cleanup, and production protection.
+A comprehensive benchmark system for Laravel applications. Safely test performance with isolated database, automatic cleanup, production protection, and **dynamic command generation**.
 
 [![Latest Stable Version](https://poser.pugx.org/alexandrebulete/laravel-benchmark/v/stable)](https://packagist.org/packages/alexandrebulete/laravel-benchmark)
 [![License](https://poser.pugx.org/alexandrebulete/laravel-benchmark/license)](https://packagist.org/packages/alexandrebulete/laravel-benchmark)
@@ -12,7 +12,8 @@ A comprehensive benchmark system for Laravel applications. Safely test performan
 - 📊 **Detailed Metrics** - Execution time, memory usage, and peak memory tracking
 - 🐳 **Docker Ready** - Includes Docker Compose template for benchmark database
 - 🛠️ **Artisan Commands** - Easy-to-use CLI for creating and running benchmarks
-- 🧹 **Auto Cleanup** - Database is wiped after each benchmark run
+- 🧹 **Auto Cleanup** - Database is wiped after each benchmark
+- ⚡ **Dynamic Commands** - Auto-generate CLI commands with custom options
 
 ## Requirements
 
@@ -31,44 +32,112 @@ Then run the installation command:
 php artisan benchmark:install --docker
 ```
 
-This will:
-- Publish the configuration file
-- Create the `tests/Benchmark` directory structure
-- Add the benchmark database connection to `config/database.php`
-- Add environment variables to `.env`
-- Create `compose.benchmark.yml` for Docker (with `--docker` flag)
+## Quick Start
+
+### 1. Create a benchmark with a command code
+
+```bash
+# With --code: auto-creates "benchmark:users" command
+php artisan make:benchmark UserProcessingBenchmark --code=users
+
+# Without --code: use benchmark:run ClassName
+php artisan make:benchmark SimpleBenchmark
+```
+
+### 2. Define CLI options in your benchmark
+
+```php
+class UserProcessingBenchmark extends BenchmarkCase
+{
+    // Auto-set by --code option, creates "benchmark:users"
+    protected static ?string $code = 'users';
+
+    // Define CLI options
+    protected static array $options = [
+        'count' => ['default' => 1000, 'description' => 'Number of users'],
+    ];
+
+    protected function applyOptions(array $options): void
+    {
+        $this->count = $options['count'];
+    }
+
+    public function benchmark(): void
+    {
+        // Your benchmark logic
+    }
+}
+```
+
+### 3. Run your benchmark
+
+```bash
+# Using dynamic command with options
+php artisan benchmark:users --count=10000
+
+# Or using generic command
+php artisan benchmark:run UserProcessingBenchmark
+```
+
+## Dynamic Commands
+
+The killer feature! Define `$code` and `$options` in your benchmark class, and a CLI command is **automatically generated**.
+
+```php
+class NotificationBenchmark extends BenchmarkCase
+{
+    protected static ?string $code = 'notifications';
+
+    protected static array $options = [
+        'users' => ['default' => 1000, 'description' => 'Number of users'],
+        'rules' => ['default' => 3, 'description' => 'Rules per user'],
+    ];
+}
+```
+
+This auto-creates:
+
+```bash
+php artisan benchmark:notifications --users=1000000 --rules=5
+```
+
+List all available benchmarks and their codes:
+
+```bash
+php artisan benchmark:list
+```
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+│ Class                          │ Code          │ Command         │
+╠══════════════════════════════════════════════════════════════════╣
+│ NotificationProcessingBenchmark│ notifications │ benchmark:notif │
+│ UserProcessingBenchmark        │ users         │ benchmark:users │
+│ SimpleBenchmark                │ -             │ benchmark:run   │
+╚══════════════════════════════════════════════════════════════════╝
+```
 
 ## Configuration
 
-After installation, you can customize the settings in `config/benchmark.php`:
+After installation, customize settings in `config/benchmark.php`:
 
 ```php
 return [
-    // Enable/disable benchmarks (also controlled by BENCHMARK_ENABLED env)
     'enabled' => env('BENCHMARK_ENABLED', false),
 
-    // Database connection for benchmarks
     'database' => [
         'connection' => env('BENCHMARK_DB_CONNECTION', 'benchmark'),
     ],
 
-    // Namespace where benchmark classes are located
     'namespace' => 'Tests\\Benchmark\\Suites',
-
-    // Path to benchmark classes (relative to base_path)
     'path' => 'tests/Benchmark/Suites',
 ];
 ```
 
 ## Environment Variables
 
-Add these to your `.env` file (automatically added by `benchmark:install`):
-
 ```env
-# Enable benchmarks (disabled by default for safety)
 BENCHMARK_ENABLED=true
-
-# Benchmark database connection
 DB_BENCHMARK_HOST=db_benchmark
 DB_BENCHMARK_PORT=3306
 DB_BENCHMARK_DATABASE=benchmark
@@ -78,36 +147,14 @@ DB_BENCHMARK_PASSWORD=benchmark
 
 ## Docker Setup
 
-### Starting the benchmark database
-
 ```bash
-# With the provided compose file
+# Start with benchmark database
 docker compose -f compose.yml -f compose.benchmark.yml up -d
-
-# Or add to your Makefile
-up-benchmark:
-    docker compose -f compose.yml -f compose.benchmark.yml up -d
-
-down-benchmark:
-    docker compose -f compose.yml -f compose.benchmark.yml down
 ```
 
-### Production Safety
+## Creating Benchmarks
 
-The `compose.benchmark.yml` file should **never** be deployed to production:
-- Don't include it in your production Docker Compose command
-- Don't deploy this file to your production server
-- The benchmark commands are automatically disabled in production environment
-
-## Usage
-
-### Creating a Benchmark
-
-```bash
-php artisan make:benchmark UserProcessingBenchmark
-```
-
-This creates a new benchmark class in `tests/Benchmark/Suites/`:
+### Full Example
 
 ```php
 <?php
@@ -115,146 +162,59 @@ This creates a new benchmark class in `tests/Benchmark/Suites/`:
 namespace Tests\Benchmark\Suites;
 
 use AlexandreBulete\Benchmark\BenchmarkCase;
+use App\Services\UserService;
 
 class UserProcessingBenchmark extends BenchmarkCase
 {
+    protected static ?string $code = 'users';
+
+    protected static array $options = [
+        'count' => ['default' => 1000, 'description' => 'Number of users to process'],
+        'batch' => ['default' => 100, 'description' => 'Batch size'],
+    ];
+
+    protected int $count;
+    protected int $batchSize;
+
     public function getDescription(): string
     {
-        return 'Benchmark user processing performance';
+        return "Process {$this->count} users in batches of {$this->batchSize}";
+    }
+
+    protected function applyOptions(array $options): void
+    {
+        $this->count = $options['count'];
+        $this->batchSize = $options['batch'];
     }
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Seed your benchmark data
-        User::factory()->count(10000)->create();
+
+        // Seed data
+        User::factory()->count($this->count)->create();
+        $this->info("✅ Seeded {$this->count} users");
     }
 
     public function benchmark(): void
     {
-        $this->info('Processing users...');
-        
-        $service = app(UserService::class);
-        $service->processAllUsers();
-        
-        $this->info('Done!');
+        $this->info('🚀 Processing users...');
+
+        app(UserService::class)->processAll($this->batchSize);
+
+        $this->info('✅ Done!');
     }
 }
 ```
 
-### Creating a Benchmark Seeder
+### Running
 
 ```bash
-php artisan make:benchmark-seeder UserBenchmarkSeeder
-```
+# With custom options
+php artisan benchmark:users --count=50000 --batch=500
 
-This creates a seeder class in `tests/Benchmark/Seeders/`:
-
-```php
-<?php
-
-namespace Tests\Benchmark\Seeders;
-
-class UserBenchmarkSeeder
-{
-    public function seed(int $count = 10000): void
-    {
-        // Use chunks to avoid memory issues
-        $chunkSize = 1000;
-        
-        for ($i = 0; $i < $count; $i += $chunkSize) {
-            $batchSize = min($chunkSize, $count - $i);
-            User::factory()->count($batchSize)->create();
-        }
-    }
-}
-```
-
-### Running Benchmarks
-
-```bash
-# List all available benchmarks
-php artisan benchmark:list
-
-# Run a specific benchmark
+# With defaults
 php artisan benchmark:run UserProcessingBenchmark
-```
-
-### Example Output
-
-```
-🚀 Running benchmark: UserProcessingBenchmark
-   Benchmark user processing performance
-
-Processing users...
-Done!
-
-📊 Benchmark Results: UserProcessingBenchmark
-
-+----------------+-----------+
-| Metric         | Value     |
-+----------------+-----------+
-| Execution Time | 12.34 s   |
-| Memory Used    | 128.5 MB  |
-| Peak Memory    | 256.0 MB  |
-+----------------+-----------+
-
-✅ Performance: Excellent (< 1 minute)
-```
-
-## Best Practices
-
-### 1. Always use the benchmark database
-
-The `BenchmarkCase` automatically switches to the benchmark database, but if you need to access it manually:
-
-```php
-DB::connection('benchmark')->table('users')->get();
-```
-
-### 2. Use chunking for large datasets
-
-```php
-protected function setUp(): void
-{
-    parent::setUp();
-    
-    // Don't do this with large counts:
-    // User::factory()->count(1000000)->create();
-    
-    // Do this instead:
-    collect(range(1, 1000000))
-        ->chunk(1000)
-        ->each(fn ($chunk) => User::factory()->count($chunk->count())->create());
-}
-```
-
-### 3. Mock external services
-
-Don't call external APIs during benchmarks. Mock them:
-
-```php
-protected function setUp(): void
-{
-    parent::setUp();
-    
-    // Mock external service
-    $this->app->bind(ExternalService::class, fn () => new MockedExternalService());
-}
-```
-
-### 4. Disable query logging
-
-For large benchmarks, disable query logging to save memory:
-
-```php
-public function benchmark(): void
-{
-    DB::disableQueryLog();
-    
-    // Your benchmark logic
-}
 ```
 
 ## Available Commands
@@ -262,14 +222,16 @@ public function benchmark(): void
 | Command | Description |
 |---------|-------------|
 | `benchmark:install` | Install the package (config, directories, Docker) |
-| `benchmark:list` | List all available benchmarks |
-| `benchmark:run {name}` | Run a specific benchmark |
+| `benchmark:list` | List all available benchmarks with codes |
+| `benchmark:run {name}` | Run a benchmark by class name |
+| `benchmark:{code}` | Run a benchmark with custom options (auto-generated) |
 | `make:benchmark {name}` | Create a new benchmark class |
+| `make:benchmark {name} --code={code}` | Create a benchmark with dynamic command |
 | `make:benchmark-seeder {name}` | Create a new benchmark seeder |
 
 ## Security
 
-This package includes multiple safety measures:
+Multiple safety measures:
 
 1. **Environment Check**: Commands refuse to run in production
 2. **Config Flag**: `BENCHMARK_ENABLED` must be `true`
@@ -279,7 +241,7 @@ This package includes multiple safety measures:
 
 ## License
 
-This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Author
 

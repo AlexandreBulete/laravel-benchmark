@@ -19,6 +19,21 @@ abstract class BenchmarkCase
     use IsNotProductionEnvironment;
     use UsesBenchmarkDatabase;
 
+    /**
+     * The command code for dynamic command registration
+     * If set, creates a command "benchmark:{code}"
+     * Example: 'notifications' creates "benchmark:notifications"
+     */
+    protected static ?string $code = null;
+
+    /**
+     * CLI options for this benchmark
+     * Format: ['option_name' => ['default' => value, 'description' => 'Help text']]
+     *
+     * @var array<string, array{default: mixed, description: string}>
+     */
+    protected static array $options = [];
+
     protected float $startTime = 0;
 
     protected float $startMemory = 0;
@@ -28,6 +43,37 @@ abstract class BenchmarkCase
     protected ?Command $command = null;
 
     /**
+     * Configured options values
+     */
+    protected array $configuredOptions = [];
+
+    /**
+     * Get the command code for dynamic registration
+     */
+    public static function getCode(): ?string
+    {
+        return static::$code;
+    }
+
+    /**
+     * Get the CLI options definition
+     *
+     * @return array<string, array{default: mixed, description: string}>
+     */
+    public static function getOptions(): array
+    {
+        return static::$options;
+    }
+
+    /**
+     * Check if this benchmark has a command code
+     */
+    public static function hasCode(): bool
+    {
+        return static::$code !== null && static::$code !== '';
+    }
+
+    /**
      * Set the console command for output
      */
     public function setCommand(Command $command): self
@@ -35,6 +81,57 @@ abstract class BenchmarkCase
         $this->command = $command;
 
         return $this;
+    }
+
+    /**
+     * Configure the benchmark with CLI options
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public function configure(array $options): self
+    {
+        $this->configuredOptions = array_merge(
+            $this->getDefaultOptions(),
+            $options
+        );
+
+        $this->applyOptions($this->configuredOptions);
+
+        return $this;
+    }
+
+    /**
+     * Get default values for all options
+     *
+     * @return array<string, mixed>
+     */
+    protected function getDefaultOptions(): array
+    {
+        $defaults = [];
+        foreach (static::$options as $name => $config) {
+            $defaults[$name] = $config['default'] ?? null;
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * Apply configured options to the benchmark
+     * Override this method to handle your custom options
+     *
+     * @param  array<string, mixed>  $options
+     */
+    protected function applyOptions(array $options): void
+    {
+        // Override in child class to apply options
+    }
+
+    /**
+     * Get a configured option value
+     */
+    protected function option(string $name, mixed $default = null): mixed
+    {
+        return $this->configuredOptions[$name] ?? $default;
     }
 
     /**
@@ -120,6 +217,14 @@ abstract class BenchmarkCase
     protected function error(string $message): void
     {
         $this->command?->error($message);
+    }
+
+    /**
+     * Output a line to console
+     */
+    protected function line(string $message): void
+    {
+        $this->command?->line($message);
     }
 
     /**

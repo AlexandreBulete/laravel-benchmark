@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexandreBulete\Benchmark\Console;
 
 use AlexandreBulete\Benchmark\BenchmarkCase;
+use AlexandreBulete\Benchmark\BenchmarkRegistry;
 use AlexandreBulete\Benchmark\Exceptions\ProductionEnvironmentException;
 use Illuminate\Console\Command;
 use Throwable;
@@ -16,22 +17,22 @@ use Throwable;
  */
 class RunBenchmarkCommand extends Command
 {
-    protected $signature = 'benchmark:run {benchmark : The benchmark class to run (e.g., MyBenchmark)}';
+    protected $signature = 'benchmark:run {benchmark : The benchmark class name (e.g., MyBenchmark)}';
 
-    protected $description = 'Run a benchmark suite';
+    protected $description = 'Run a benchmark suite by class name';
 
     public function handle(): int
     {
         try {
             return $this->runBenchmark();
         } catch (ProductionEnvironmentException $e) {
-            $this->error('❌ ' . $e->getMessage());
+            $this->error('❌ '.$e->getMessage());
 
             return Command::FAILURE;
         } catch (Throwable $e) {
-            $this->error('❌ Benchmark failed: ' . $e->getMessage());
+            $this->error('❌ Benchmark failed: '.$e->getMessage());
             $this->newLine();
-            $this->line('<fg=gray>' . $e->getTraceAsString() . '</>');
+            $this->line('<fg=gray>'.$e->getTraceAsString().'</>');
 
             return Command::FAILURE;
         }
@@ -40,9 +41,9 @@ class RunBenchmarkCommand extends Command
     protected function runBenchmark(): int
     {
         $benchmarkName = $this->argument('benchmark');
-        $benchmarkClass = $this->resolveBenchmarkClass($benchmarkName);
+        $benchmarkData = BenchmarkRegistry::findByName($benchmarkName);
 
-        if (! $benchmarkClass) {
+        if (! $benchmarkData) {
             $this->error("❌ Benchmark '{$benchmarkName}' not found.");
             $this->newLine();
             $this->line('List available benchmarks with: <comment>php artisan benchmark:list</comment>');
@@ -50,50 +51,43 @@ class RunBenchmarkCommand extends Command
             return Command::FAILURE;
         }
 
-        $benchmark = app($benchmarkClass);
+        $benchmarkClass = $benchmarkData['class'];
 
-        if (! $benchmark instanceof BenchmarkCase) {
-            $this->error("❌ Class '{$benchmarkClass}' must extend " . BenchmarkCase::class);
-
-            return Command::FAILURE;
-        }
-
+        /** @var BenchmarkCase $benchmark */
+        $benchmark = new $benchmarkClass;
         $benchmark->setCommand($this);
 
-        $this->info("🚀 Running benchmark: {$benchmark->getName()}");
-        $this->line("   <fg=gray>{$benchmark->getDescription()}</>");
-        $this->newLine();
+        // Configure with default options
+        if (! empty($benchmarkData['options'])) {
+            $benchmark->configure([]);
+        }
+
+        $this->displayHeader($benchmark);
 
         $results = $benchmark->run();
 
         $this->displayResults($benchmark->getName(), $results);
 
+        // Show hint for dynamic command if available
+        if ($benchmarkData['code']) {
+            $this->newLine();
+            $this->line('💡 Tip: Use <comment>php artisan benchmark:'.$benchmarkData['code'].'</comment> for more options.');
+        }
+
         return Command::SUCCESS;
     }
 
-    protected function resolveBenchmarkClass(string $name): ?string
+    protected function displayHeader(BenchmarkCase $benchmark): void
     {
-        $namespace = config('benchmark.namespace', 'Tests\\Benchmark\\Suites');
-
-        // Try with the exact name first
-        $class = $namespace . '\\' . $name;
-        if (class_exists($class)) {
-            return $class;
-        }
-
-        // Try with 'Benchmark' suffix
-        $class = $namespace . '\\' . $name . 'Benchmark';
-        if (class_exists($class)) {
-            return $class;
-        }
-
-        return null;
+        $this->info("🚀 Running benchmark: {$benchmark->getName()}");
+        $this->line("   <fg=gray>{$benchmark->getDescription()}</>");
+        $this->newLine();
     }
 
     protected function displayResults(string $name, array $results): void
     {
         $this->newLine();
-        $this->info('📊 Benchmark Results: ' . $name);
+        $this->info('📊 Benchmark Results: '.$name);
         $this->newLine();
 
         $this->table(
@@ -120,24 +114,24 @@ class RunBenchmarkCommand extends Command
     protected function formatTime(float $seconds): string
     {
         if ($seconds < 1) {
-            return round($seconds * 1000, 2) . ' ms';
+            return round($seconds * 1000, 2).' ms';
         }
 
         if ($seconds < 60) {
-            return round($seconds, 2) . ' s';
+            return round($seconds, 2).' s';
         }
 
         $minutes = floor($seconds / 60);
         $remainingSeconds = $seconds % 60;
 
         if ($seconds < 3600) {
-            return "{$minutes}m " . round($remainingSeconds, 2) . 's';
+            return "{$minutes}m ".round($remainingSeconds, 2).'s';
         }
 
         $hours = floor($seconds / 3600);
         $minutes = floor(($seconds % 3600) / 60);
 
-        return "{$hours}h {$minutes}m " . round($remainingSeconds, 2) . 's';
+        return "{$hours}h {$minutes}m ".round($remainingSeconds, 2).'s';
     }
 
     protected function formatMemory(float $bytes): string
@@ -150,6 +144,6 @@ class RunBenchmarkCommand extends Command
             $i++;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        return round($bytes, 2).' '.$units[$i];
     }
 }

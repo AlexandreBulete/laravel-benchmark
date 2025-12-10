@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace AlexandreBulete\Benchmark;
 
+use AlexandreBulete\Benchmark\Console\DynamicBenchmarkCommand;
 use AlexandreBulete\Benchmark\Console\InstallBenchmarkCommand;
 use AlexandreBulete\Benchmark\Console\ListBenchmarksCommand;
 use AlexandreBulete\Benchmark\Console\MakeBenchmarkCommand;
 use AlexandreBulete\Benchmark\Console\MakeBenchmarkSeederCommand;
 use AlexandreBulete\Benchmark\Console\RunBenchmarkCommand;
+use Illuminate\Console\Application as Artisan;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -50,8 +52,33 @@ class BenchmarkServiceProvider extends PackageServiceProvider
         // Publish stubs
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__ . '/../stubs' => base_path('stubs/benchmark'),
+                __DIR__.'/../stubs' => base_path('stubs/benchmark'),
             ], 'benchmark-stubs');
+
+            // Register dynamic benchmark commands (only if not in production)
+            if (! $this->app->environment('production') && config('benchmark.enabled', false)) {
+                $this->registerDynamicCommands();
+            }
+        }
+    }
+
+    /**
+     * Register dynamic benchmark commands based on benchmark $code property
+     */
+    protected function registerDynamicCommands(): void
+    {
+        $benchmarks = BenchmarkRegistry::getWithCodes();
+
+        foreach ($benchmarks as $benchmark) {
+            $command = new DynamicBenchmarkCommand(
+                $benchmark['class'],
+                $benchmark['code'],
+                $benchmark['options']
+            );
+
+            Artisan::starting(function ($artisan) use ($command) {
+                $artisan->add($command);
+            });
         }
     }
 }

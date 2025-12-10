@@ -118,8 +118,8 @@ class InstallBenchmarkCommand extends Command
                 $benchmarkConnection = $this->getBenchmarkConnectionConfig();
 
                 $newConfig = substr($config, 0, $insertPosition)
-                    . $benchmarkConnection
-                    . substr($config, $insertPosition);
+                    .$benchmarkConnection
+                    .substr($config, $insertPosition);
 
                 $this->files->put($configPath, $newConfig);
             }
@@ -186,7 +186,7 @@ ENV;
     protected function installDockerCompose(): void
     {
         $this->components->task('Installing Docker compose file', function () {
-            $stubPath = __DIR__ . '/../../stubs/compose.benchmark.yml.stub';
+            $stubPath = __DIR__.'/../../stubs/compose.benchmark.yml.stub';
             $targetPath = base_path('compose.benchmark.yml');
 
             if ($this->files->exists($targetPath) && ! $this->option('force')) {
@@ -252,4 +252,3 @@ YAML;
         $this->line('     <comment>php artisan benchmark:run MyFirstBenchmark</comment>');
     }
 }
-

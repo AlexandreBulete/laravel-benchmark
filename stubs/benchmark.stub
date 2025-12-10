@@ -9,11 +9,34 @@ use AlexandreBulete\Benchmark\BenchmarkCase;
 class {{ class }} extends BenchmarkCase
 {
     /**
+     * Command code: creates "benchmark:{code}"
+     * Set to null to disable dynamic command registration
+     */
+    protected static ?string $code = null;
+
+    /**
+     * CLI options for this benchmark
+     * Format: ['option_name' => ['default' => value, 'description' => 'Help text']]
+     */
+    protected static array $options = [
+        // 'count' => ['default' => 1000, 'description' => 'Number of items to process'],
+    ];
+
+    /**
      * Get the benchmark description
      */
     public function getDescription(): string
     {
         return 'Describe what this benchmark tests';
+    }
+
+    /**
+     * Apply CLI options to the benchmark
+     * Called automatically with parsed options from CLI
+     */
+    protected function applyOptions(array $options): void
+    {
+        // Example: $this->count = $options['count'];
     }
 
     /**
@@ -27,7 +50,7 @@ class {{ class }} extends BenchmarkCase
         // Seed your benchmark data here
         // Example:
         // $seeder = new MyBenchmarkSeeder();
-        // $seeder->seed(count: 10000);
+        // $seeder->seed(count: $this->option('count'));
     }
 
     /**
@@ -46,4 +69,3 @@ class {{ class }} extends BenchmarkCase
         $this->info('Benchmark completed!');
     }
 }
-

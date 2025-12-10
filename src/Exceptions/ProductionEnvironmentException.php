@@ -12,4 +12,3 @@ use RuntimeException;
  * @author Alexandre Bulete <bulete.alexandre@gmail.com>
  */
 class ProductionEnvironmentException extends RuntimeException {}
-

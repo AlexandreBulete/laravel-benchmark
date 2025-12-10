@@ -28,7 +28,7 @@ class MakeBenchmarkSeederCommand extends GeneratorCommand
             return $customStub;
         }
 
-        return __DIR__ . '/../../stubs/seeder.stub';
+        return __DIR__.'/../../stubs/seeder.stub';
     }
 
     protected function getDefaultNamespace($rootNamespace): string
@@ -40,7 +40,7 @@ class MakeBenchmarkSeederCommand extends GeneratorCommand
     {
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);
 
-        return base_path('tests/Benchmark/Seeders') . '/' . str_replace('\\', '/', $name) . '.php';
+        return base_path('tests/Benchmark/Seeders').'/'.str_replace('\\', '/', $name).'.php';
     }
 
     protected function rootNamespace(): string
@@ -59,4 +59,3 @@ class MakeBenchmarkSeederCommand extends GeneratorCommand
         return $result;
     }
 }
-
