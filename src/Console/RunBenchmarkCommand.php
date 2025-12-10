@@ -98,17 +98,6 @@ class RunBenchmarkCommand extends Command
                 ['Peak Memory', $this->formatMemory($results['peak_memory'])],
             ]
         );
-
-        $this->newLine();
-
-        // Performance assessment
-        if ($results['execution_time'] < 60) {
-            $this->info('✅ Performance: Excellent (< 1 minute)');
-        } elseif ($results['execution_time'] < 300) {
-            $this->warn('⚠️  Performance: Acceptable (< 5 minutes)');
-        } else {
-            $this->error('❌ Performance: Needs optimization (> 5 minutes)');
-        }
     }
 
     protected function formatTime(float $seconds): string

@@ -192,16 +192,6 @@ class DynamicBenchmarkCommand extends Command
         $this->info('║  Memory Used:        '.str_pad($this->formatMemory($results['memory_used']), 37).'║');
         $this->info('║  Peak Memory:        '.str_pad($this->formatMemory($results['peak_memory']), 37).'║');
         $this->info('╚════════════════════════════════════════════════════════════╝');
-        $this->newLine();
-
-        // Performance assessment
-        if ($results['execution_time'] < 60) {
-            $this->info('✅ Performance: EXCELLENT (< 1 minute)');
-        } elseif ($results['execution_time'] < 300) {
-            $this->warn('⚠️  Performance: ACCEPTABLE (< 5 minutes)');
-        } else {
-            $this->error('❌ Performance: NEEDS OPTIMIZATION (> 5 minutes)');
-        }
     }
 
     /**

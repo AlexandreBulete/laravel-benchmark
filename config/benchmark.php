@@ -151,5 +151,22 @@ return [
             // Maximum total suggestions to display
             'max_total' => 10,
         ],
+
+        /*
+        |----------------------------------------------------------------------
+        | Performance Score Configuration
+        |----------------------------------------------------------------------
+        |
+        | Configure how the performance score is calculated.
+        |
+        */
+        'score' => [
+            // Enable performance score display
+            'enabled' => true,
+            // Show score breakdown (penalties and bonuses)
+            'show_breakdown' => true,
+            // Show estimated time savings
+            'show_savings' => true,
+        ],
     ],
 ];

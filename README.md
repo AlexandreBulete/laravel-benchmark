@@ -100,47 +100,92 @@ The Advisor automatically analyzes all SQL queries during your benchmark and pro
 ║                    📊 ADVISOR REPORT                           ║
 ╚════════════════════════════════════════════════════════════════╝
 
+  🏆 Performance Score: 72/100 Acceptable
+  [██████████████░░░░░░]
+
 Database Statistics:
 ┌──────────────────┬─────────────┐
-│ Total Queries    │ 3,542       │
-│ Unique Queries   │ 12          │
-│ Total DB Time    │ 4.52s       │
-│ DB Time %        │ 78.3%       │
+│ Total Queries    │ 1,401       │
+│ Unique Queries   │ 7           │
+│ Total DB Time    │ 2.86s       │
+│ DB Time %        │ 79.1%       │
 └──────────────────┴─────────────┘
 
 Issues Found:
-  🔴 2 critical  ⚠️  5 warnings  ℹ️  3 info
+  🔴 6 critical
+
+Potential Optimization:
+  💰 Estimated time savings: ~2.34s if all N+1 issues are fixed
+  📈 Potential score: 95/100 (currently 72)
 
 Optimization Suggestions:
 
 🔴 [n_plus_one] Possible N+1 Query
-   500 identical queries executed (total: 2450.32ms, avg: 4.90ms)
-   📍 App\Services\UserService::loadProfiles()
-   💡 Consider eager loading with ->with('profile') or ->load('profile')
-   SQL: SELECT * FROM `profiles` WHERE `user_id` = ?...
+   100 identical queries (total: 100.58ms, avg: 1.01ms)
+   💰 Potential savings: ~80.46ms
+   📍 App\Models\User::hasEnabledRemindersNotifications()
+   → Add eager loading: ->with('settings')
+   → Or load after: $model->load('settings')
+   SQL: select * from `user_settings` where `user_id` = ?...
 
-⚠️  [slow_query] Slow Query Detected
-   Query took 892.45ms (threshold: 100ms)
-   📍 App\Jobs\ProcessOrders::handle()
-   💡 Consider adding an index on column 'created_at'
-   💡 Ensure columns in ORDER BY clause are indexed
-   SQL: SELECT * FROM `orders` WHERE `status` = ? ORDER BY...
-
-⚠️  [hotspot] Database Hotspot
-   2,100 queries (59.3% of total), 3.21s (71.0% of DB time)
-   📍 App\Services\NotificationService::processAll()
-   💡 This location generates a large number of queries
-   💡 Consider batching operations or using bulk queries
+🔴 [n_plus_one] Possible N+1 Query
+   300 identical queries (total: 260.77ms, avg: 0.87ms)
+   💰 Potential savings: ~208.62ms
+   📍 App\DTOs\Notification\CloudMessageDTO::fromModel()
+   → Add eager loading: ->with('user')
+   → This could reduce queries from N to 1
+   SQL: select * from `users` where `id` = ? limit 1
 
 Top 5 Locations by Query Count:
-┌─────────────────────────────────────────┬─────────┬──────────┐
-│ Location                                │ Queries │ Time     │
-├─────────────────────────────────────────┼─────────┼──────────┤
-│ NotificationService::processAll()       │ 2,100   │ 3.21s    │
-│ UserService::loadProfiles()             │ 500     │ 2.45s    │
-│ OrderRepository::findByUser()           │ 342     │ 0.89s    │
-└─────────────────────────────────────────┴─────────┴──────────┘
+┌──────────────────────────────────────────────────────┬─────────┬──────────┐
+│ Location                                             │ Queries │ Time     │
+├──────────────────────────────────────────────────────┼─────────┼──────────┤
+│ CloudMessageDTO::fromModel()                         │ 600     │ 520.55ms │
+│ RuleService::processRule()                           │ 300     │ 1.09s    │
+│ NotificationRepository::create()                     │ 300     │ 1.04s    │
+└──────────────────────────────────────────────────────┴─────────┴──────────┘
+
+Score Breakdown:
+  -30 N+1 query issues
+  -10 High DB time (79.1%)
+  -15 Low query uniqueness (0.5%)
+  +5 No critical issues
+
+Analysis completed in 31.16ms
 ```
+
+### Performance Score
+
+The Advisor calculates a **Performance Score (0-100)** based on:
+
+| Factor | Impact |
+|--------|--------|
+| N+1 queries | -8 to -15 per issue |
+| Slow queries | -10 to -20 per issue |
+| High DB time (>70%) | -10 to -15 |
+| Low query uniqueness | -5 to -15 |
+| **Bonuses** | +5 to +10 for clean code |
+
+**Grades:**
+- 🏆 **A (90-100)**: Excellent
+- ✅ **B (80-89)**: Good
+- ⚠️ **C (70-79)**: Acceptable
+- 🔧 **D (60-69)**: Needs Work
+- ❌ **E (50-59)**: Poor
+- 🔴 **F (0-49)**: Critical
+
+### Smart Suggestions
+
+The Advisor analyzes your SQL to provide **specific** eager loading suggestions:
+
+```
+SQL: SELECT * FROM user_settings WHERE user_id = ?
+
+→ Add eager loading: ->with('settings')
+→ Or load after: $model->load('settings')
+```
+
+Instead of generic advice, it detects the table and suggests the exact relationship name.
 
 ### Disabling Advisor
 
