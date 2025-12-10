@@ -21,7 +21,7 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 /**
  * Service provider for the benchmark package
  * This provider registers commands and configuration only in non-production environments
- *
+ * 
  * @author Alexandre Bulete <bulete.alexandre@gmail.com>
  */
 class BenchmarkServiceProvider extends PackageServiceProvider

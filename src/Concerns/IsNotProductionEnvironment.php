@@ -1,4 +1,4 @@
-<?php
+<?php 
 
 declare(strict_types=1);
 
@@ -8,7 +8,7 @@ use AlexandreBulete\Benchmark\Exceptions\ProductionEnvironmentException;
 
 /**
  * This trait ensures that benchmarks cannot run in production environment
- *
+ * 
  * @author Alexandre Bulete <bulete.alexandre@gmail.com>
  */
 trait IsNotProductionEnvironment
@@ -38,6 +38,6 @@ trait IsNotProductionEnvironment
             throw new ProductionEnvironmentException(
                 'Benchmarks are disabled. Set BENCHMARK_ENABLED=true in your .env file to enable.'
             );
-        }
     }
+}
 }
