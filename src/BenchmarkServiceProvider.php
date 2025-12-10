@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexandreBulete\Benchmark;
 
 use AlexandreBulete\Benchmark\Console\InstallBenchmarkCommand;
+use AlexandreBulete\Benchmark\Console\ListBenchmarksCommand;
 use AlexandreBulete\Benchmark\Console\MakeBenchmarkCommand;
 use AlexandreBulete\Benchmark\Console\MakeBenchmarkSeederCommand;
 use AlexandreBulete\Benchmark\Console\RunBenchmarkCommand;
@@ -37,6 +38,7 @@ class BenchmarkServiceProvider extends PackageServiceProvider
         if (! $this->app->environment('production')) {
             $this->commands([
                 RunBenchmarkCommand::class,
+                ListBenchmarksCommand::class,
                 MakeBenchmarkCommand::class,
                 MakeBenchmarkSeederCommand::class,
             ]);

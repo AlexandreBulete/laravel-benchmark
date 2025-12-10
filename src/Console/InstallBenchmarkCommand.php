@@ -145,6 +145,7 @@ class InstallBenchmarkCommand extends Command
             'strict' => true,
         ],
 
+        
 CONFIG;
     }
 
@@ -165,6 +166,7 @@ CONFIG;
             }
 
             $variables = <<<'ENV'
+
 
 # Benchmark Configuration
 BENCHMARK_ENABLED=true

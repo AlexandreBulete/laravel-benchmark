@@ -7,8 +7,6 @@ namespace AlexandreBulete\Benchmark\Console;
 use AlexandreBulete\Benchmark\BenchmarkCase;
 use AlexandreBulete\Benchmark\Exceptions\ProductionEnvironmentException;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -18,18 +16,12 @@ use Throwable;
  */
 class RunBenchmarkCommand extends Command
 {
-    protected $signature = 'benchmark:run
-        {benchmark : The benchmark class to run (e.g., MyBenchmark)}
-        {--list : List all available benchmarks}';
+    protected $signature = 'benchmark:run {benchmark : The benchmark class to run (e.g., MyBenchmark)}';
 
     protected $description = 'Run a benchmark suite';
 
     public function handle(): int
     {
-        if ($this->option('list')) {
-            return $this->listBenchmarks();
-        }
-
         try {
             return $this->runBenchmark();
         } catch (ProductionEnvironmentException $e) {
@@ -53,8 +45,7 @@ class RunBenchmarkCommand extends Command
         if (! $benchmarkClass) {
             $this->error("❌ Benchmark '{$benchmarkName}' not found.");
             $this->newLine();
-            $this->info('Available benchmarks:');
-            $this->listBenchmarks();
+            $this->line('List available benchmarks with: <comment>php artisan benchmark:list</comment>');
 
             return Command::FAILURE;
         }
@@ -97,53 +88,6 @@ class RunBenchmarkCommand extends Command
         }
 
         return null;
-    }
-
-    protected function listBenchmarks(): int
-    {
-        $path = base_path(config('benchmark.path', 'tests/Benchmark/Suites'));
-
-        if (! File::isDirectory($path)) {
-            $this->warn('No benchmarks directory found.');
-            $this->line('Run <comment>php artisan benchmark:install</comment> to set up the package.');
-
-            return Command::SUCCESS;
-        }
-
-        $files = File::files($path);
-        $benchmarks = [];
-
-        foreach ($files as $file) {
-            if ($file->getExtension() === 'php') {
-                $className = $file->getFilenameWithoutExtension();
-                $fullClass = config('benchmark.namespace', 'Tests\\Benchmark\\Suites') . '\\' . $className;
-
-                if (class_exists($fullClass) && is_subclass_of($fullClass, BenchmarkCase::class)) {
-                    $instance = app($fullClass);
-                    $benchmarks[] = [
-                        'name' => $className,
-                        'description' => $instance->getDescription(),
-                    ];
-                }
-            }
-        }
-
-        if (empty($benchmarks)) {
-            $this->warn('No benchmarks found.');
-            $this->line('Create one with: <comment>php artisan make:benchmark MyBenchmark</comment>');
-
-            return Command::SUCCESS;
-        }
-
-        $this->info('Available benchmarks:');
-        $this->newLine();
-
-        $this->table(
-            ['Name', 'Description'],
-            array_map(fn ($b) => [$b['name'], Str::limit($b['description'], 50)], $benchmarks)
-        );
-
-        return Command::SUCCESS;
     }
 
     protected function displayResults(string $name, array $results): void

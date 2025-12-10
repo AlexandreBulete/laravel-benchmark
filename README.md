@@ -174,11 +174,11 @@ class UserBenchmarkSeeder
 ### Running Benchmarks
 
 ```bash
+# List all available benchmarks
+php artisan benchmark:list
+
 # Run a specific benchmark
 php artisan benchmark:run UserProcessingBenchmark
-
-# List all available benchmarks
-php artisan benchmark:run --list
 ```
 
 ### Example Output
@@ -262,8 +262,8 @@ public function benchmark(): void
 | Command | Description |
 |---------|-------------|
 | `benchmark:install` | Install the package (config, directories, Docker) |
+| `benchmark:list` | List all available benchmarks |
 | `benchmark:run {name}` | Run a specific benchmark |
-| `benchmark:run --list` | List all available benchmarks |
 | `make:benchmark {name}` | Create a new benchmark class |
 | `make:benchmark-seeder {name}` | Create a new benchmark seeder |
 
