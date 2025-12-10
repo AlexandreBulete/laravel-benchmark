@@ -63,7 +63,7 @@ class InstallBenchmarkCommand extends Command
     {
         $this->components->task('Publishing configuration', function () {
             $this->callSilently('vendor:publish', [
-                '--tag' => 'laravel-benchmark-config',
+                '--tag' => 'benchmark-config',
                 '--force' => $this->option('force'),
             ]);
         });
