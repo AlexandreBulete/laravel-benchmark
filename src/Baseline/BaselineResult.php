@@ -17,8 +17,8 @@ final readonly class BaselineResult
         public string $benchmark_name,
         public string $benchmark_class,
         public float $execution_time,
-        public int $memory_used,
-        public int $peak_memory,
+        public float $memory_used,
+        public float $peak_memory,
         public int $total_queries,
         public float $total_db_time,
         public int $performance_score,
@@ -26,6 +26,8 @@ final readonly class BaselineResult
         public string $created_at,
         public ?string $git_branch = null,
         public ?string $git_commit = null,
+        public int $iterations = 1,
+        public ?array $stats = null,
     ) {}
 
     /**
@@ -36,14 +38,16 @@ final readonly class BaselineResult
         string $benchmark_class,
         array $results,
         array $advisor_data,
-        array $options
+        array $options,
+        int $iterations = 1,
+        ?array $stats = null
     ): self {
         return new self(
             benchmark_name: $benchmark_name,
             benchmark_class: $benchmark_class,
             execution_time: (float) $results['execution_time'],
-            memory_used: (int) $results['memory_used'],
-            peak_memory: (int) $results['peak_memory'],
+            memory_used: (float) $results['memory_used'],
+            peak_memory: (float) $results['peak_memory'],
             total_queries: (int) ($advisor_data['total_queries'] ?? 0),
             total_db_time: (float) ($advisor_data['total_db_time'] ?? 0),
             performance_score: (int) ($advisor_data['performance_score'] ?? 0),
@@ -51,6 +55,8 @@ final readonly class BaselineResult
             created_at: Carbon::now()->toIso8601String(),
             git_branch: self::getGitBranch(),
             git_commit: self::getGitCommit(),
+            iterations: $iterations,
+            stats: $stats,
         );
     }
 
@@ -63,8 +69,8 @@ final readonly class BaselineResult
             benchmark_name: $data['benchmark_name'],
             benchmark_class: $data['benchmark_class'],
             execution_time: (float) $data['execution_time'],
-            memory_used: (int) $data['memory_used'],
-            peak_memory: (int) $data['peak_memory'],
+            memory_used: (float) $data['memory_used'],
+            peak_memory: (float) $data['peak_memory'],
             total_queries: (int) $data['total_queries'],
             total_db_time: (float) $data['total_db_time'],
             performance_score: (int) $data['performance_score'],
@@ -72,6 +78,8 @@ final readonly class BaselineResult
             created_at: $data['created_at'],
             git_branch: $data['git_branch'] ?? null,
             git_commit: $data['git_commit'] ?? null,
+            iterations: (int) ($data['iterations'] ?? 1),
+            stats: $data['stats'] ?? null,
         );
     }
 
@@ -80,7 +88,7 @@ final readonly class BaselineResult
      */
     public function toArray(): array
     {
-        return [
+        $data = [
             'benchmark_name' => $this->benchmark_name,
             'benchmark_class' => $this->benchmark_class,
             'execution_time' => $this->execution_time,
@@ -93,7 +101,14 @@ final readonly class BaselineResult
             'created_at' => $this->created_at,
             'git_branch' => $this->git_branch,
             'git_commit' => $this->git_commit,
+            'iterations' => $this->iterations,
         ];
+
+        if ($this->stats !== null) {
+            $data['stats'] = $this->stats;
+        }
+
+        return $data;
     }
 
     /**

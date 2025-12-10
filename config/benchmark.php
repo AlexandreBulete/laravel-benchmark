@@ -68,6 +68,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Iterations Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure how many times a benchmark runs to get stable results.
+    | Running multiple iterations helps eliminate variance from GC, cache, etc.
+    |
+    */
+    'iterations' => [
+        // Default number of iterations (can be overridden with --iterations)
+        'default' => env('BENCHMARK_ITERATIONS', 5),
+
+        // Minimum allowed iterations
+        'min' => 1,
+
+        // Maximum allowed iterations (to prevent accidental infinite loops)
+        'max' => 100,
+
+        // Number of warmup runs to discard (cache warmup, JIT, etc.)
+        'warmup' => env('BENCHMARK_WARMUP', 0),
+
+        // Show individual iteration results in output
+        'show_individual' => true,
+
+        // Variance threshold (%) above which to show a warning
+        'variance_warning_threshold' => 15,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Advisor Configuration
     |--------------------------------------------------------------------------
     |

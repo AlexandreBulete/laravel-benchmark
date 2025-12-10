@@ -10,6 +10,7 @@ use AlexandreBulete\Benchmark\Baseline\BaselineStorage;
 use AlexandreBulete\Benchmark\Baseline\RegressionDetector;
 use AlexandreBulete\Benchmark\BenchmarkCase;
 use AlexandreBulete\Benchmark\Exceptions\ProductionEnvironmentException;
+use AlexandreBulete\Benchmark\Stats\IterationResult;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Throwable;
@@ -79,6 +80,10 @@ class DynamicBenchmarkCommand extends Command
             }
         }
 
+        // Add iteration options
+        $signature .= ' {--iterations= : Number of iterations to run (default from config)}';
+        $signature .= ' {--warmup= : Number of warmup runs to discard (default from config)}';
+
         // Add baseline options
         $signature .= ' {--baseline : Save results as baseline for future comparisons}';
         $signature .= ' {--compare : Compare results against saved baseline}';
@@ -99,28 +104,116 @@ class DynamicBenchmarkCommand extends Command
     }
 
     /**
+     * Get the number of iterations to run
+     */
+    protected function getIterations(): int
+    {
+        $cli_value = $this->option('iterations');
+
+        if ($cli_value !== null) {
+            return max(
+                config('benchmark.iterations.min', 1),
+                min((int) $cli_value, config('benchmark.iterations.max', 100))
+            );
+        }
+
+        return config('benchmark.iterations.default', 5);
+    }
+
+    /**
+     * Get the number of warmup runs
+     */
+    protected function getWarmupRuns(): int
+    {
+        $cli_value = $this->option('warmup');
+
+        if ($cli_value !== null) {
+            return max(0, (int) $cli_value);
+        }
+
+        return config('benchmark.iterations.warmup', 0);
+    }
+
+    /**
      * Execute the command
      */
     public function handle(BaselineStorage $storage): int
     {
         try {
-            /** @var BenchmarkCase $benchmark */
-            $benchmark = new $this->benchmarkClass;
-            $benchmark->setCommand($this);
+            $iterations = $this->getIterations();
+            $warmup = $this->getWarmupRuns();
+            $total_runs = $iterations + $warmup;
 
             // Collect options from CLI
             $options = $this->collectOptions();
+
+            /** @var BenchmarkCase $benchmark */
+            $benchmark = new $this->benchmarkClass;
+            $benchmark->setCommand($this);
             $benchmark->configure($options);
 
-            $this->displayHeader($benchmark, $options);
+            $this->displayHeader($benchmark, $options, $iterations, $warmup);
 
-            $results = $benchmark->run();
-            $advisor_report = $benchmark->getAdvisorReport();
+            // Run multiple iterations
+            $iteration_results = [];
+            $last_advisor_report = null;
 
-            $this->displayResults($benchmark->getName(), $results, $options);
+            for ($i = 1; $i <= $total_runs; $i++) {
+                $is_warmup = $i <= $warmup;
+                $run_number = $is_warmup ? "W{$i}" : ($i - $warmup);
+
+                $this->line(sprintf(
+                    '<fg=%s>  [%s] Running iteration %s...</>',
+                    $is_warmup ? 'gray' : 'cyan',
+                    $is_warmup ? 'WARMUP' : 'RUN',
+                    $run_number
+                ));
+
+                // Run the benchmark
+                $results = $benchmark->run();
+                $advisor_report = $benchmark->getAdvisorReport();
+
+                // Calculate performance score
+                $performance_score = 0;
+                if ($advisor_report) {
+                    $score = new PerformanceScore($advisor_report, $results['execution_time']);
+                    $performance_score = $score->getScore();
+                    $last_advisor_report = $advisor_report;
+                }
+
+                // Store results (skip warmup)
+                if (! $is_warmup) {
+                    $iteration_results[] = [
+                        'execution_time' => $results['execution_time'],
+                        'memory_used' => $results['memory_used'],
+                        'peak_memory' => $results['peak_memory'],
+                        'query_count' => $advisor_report?->total_queries ?? 0,
+                        'db_time' => $advisor_report?->total_db_time ?? 0,
+                        'performance_score' => $performance_score,
+                    ];
+
+                    $this->line(sprintf(
+                        '       <fg=green>✓</> %s | Memory: %s | Score: %d/100',
+                        $this->formatTime($results['execution_time']),
+                        $this->formatMemory($results['peak_memory']),
+                        $performance_score
+                    ));
+                } else {
+                    $this->line(sprintf(
+                        '       <fg=gray>○</> %s (discarded)',
+                        $this->formatTime($results['execution_time'])
+                    ));
+                }
+            }
+
+            // Calculate statistics
+            $stats = IterationResult::fromIterations($iteration_results, $warmup);
+
+            // Display results
+            $this->displayIterationResults($benchmark->getName(), $stats, $last_advisor_report);
 
             // Handle baseline operations
-            return $this->handleBaselineOperations($benchmark, $results, $advisor_report, $options, $storage);
+            return $this->handleBaselineOperations($benchmark, $stats, $last_advisor_report, $options, $storage);
         } catch (ProductionEnvironmentException $e) {
             $this->error('❌ '.$e->getMessage());
 
@@ -139,24 +232,25 @@ class DynamicBenchmarkCommand extends Command
      */
     protected function handleBaselineOperations(
         BenchmarkCase $benchmark,
-        array $results,
+        IterationResult $stats,
         $advisor_report,
         array $options,
         BaselineStorage $storage
     ): int {
         $benchmark_name = $benchmark->getName();
 
-        // Prepare advisor data
-        $advisor_data = [
-            'total_queries' => $advisor_report?->total_queries ?? 0,
-            'total_db_time' => $advisor_report?->total_db_time ?? 0,
-            'performance_score' => 0,
+        // Use median values for baseline (most stable)
+        $results = [
+            'execution_time' => $stats->execution_time->median,
+            'memory_used' => $stats->memory_used->median,
+            'peak_memory' => $stats->peak_memory->median,
         ];
 
-        if ($advisor_report) {
-            $score = new PerformanceScore($advisor_report, $results['execution_time']);
-            $advisor_data['performance_score'] = $score->getScore();
-        }
+        $advisor_data = [
+            'total_queries' => (int) $stats->query_count->median,
+            'total_db_time' => $stats->db_time->median,
+            'performance_score' => (int) $stats->performance_score->median,
+        ];
 
         // Create current result
         $current = BaselineResult::fromResults(
@@ -164,12 +258,14 @@ class DynamicBenchmarkCommand extends Command
             benchmark_class: $this->benchmarkClass,
             results: $results,
             advisor_data: $advisor_data,
-            options: $options
+            options: $options,
+            iterations: $stats->execution_time->iterations,
+            stats: $stats->toArray()
         );
 
         // Save as baseline
         if ($this->option('baseline')) {
-            return $this->saveBaseline($current, $storage);
+            return $this->saveBaseline($current, $stats, $storage);
         }
 
         // Compare to baseline
@@ -183,7 +279,7 @@ class DynamicBenchmarkCommand extends Command
     /**
      * Save current results as baseline
      */
-    protected function saveBaseline(BaselineResult $result, BaselineStorage $storage): int
+    protected function saveBaseline(BaselineResult $result, IterationResult $stats, BaselineStorage $storage): int
     {
         $filepath = $storage->save($result);
 
@@ -195,7 +291,9 @@ class DynamicBenchmarkCommand extends Command
 
         $this->table([], [
             ['Benchmark', $result->benchmark_name],
-            ['Execution Time', $this->formatTime($result->execution_time)],
+            ['Iterations', $stats->execution_time->iterations],
+            ['Execution Time (median)', $this->formatTime($result->execution_time)],
+            ['Std Deviation', sprintf('±%s (%.1f%%)', $this->formatTime($stats->execution_time->std_deviation), $stats->execution_time->std_deviation_percent)],
             ['Peak Memory', $this->formatMemory($result->peak_memory)],
             ['Total Queries', number_format($result->total_queries)],
             ['Performance Score', $result->performance_score.'/100'],
@@ -271,7 +369,7 @@ class DynamicBenchmarkCommand extends Command
         $this->newLine();
 
         // Comparison table
-        $this->line('<fg=cyan>Metrics Comparison:</>');
+        $this->line('<fg=cyan>Metrics Comparison (median values):</>');
 
         $this->table(
             ['Metric', 'Baseline', 'Current', 'Change'],
@@ -441,7 +539,7 @@ class DynamicBenchmarkCommand extends Command
     /**
      * Display benchmark header
      */
-    protected function displayHeader(BenchmarkCase $benchmark, array $options): void
+    protected function displayHeader(BenchmarkCase $benchmark, array $options, int $iterations, int $warmup): void
     {
         $this->info('╔════════════════════════════════════════════════════════════╗');
         $this->info('║  BENCHMARK: '.str_pad($benchmark->getName(), 46).'║');
@@ -452,23 +550,89 @@ class DynamicBenchmarkCommand extends Command
             $this->info('║  '.str_pad($name.': '.$displayValue, 58).'║');
         }
 
+        $this->info('╠════════════════════════════════════════════════════════════╣');
+        $iterations_info = "iterations: {$iterations}";
+        if ($warmup > 0) {
+            $iterations_info .= " (+ {$warmup} warmup)";
+        }
+        $this->info('║  '.str_pad($iterations_info, 58).'║');
         $this->info('╚════════════════════════════════════════════════════════════╝');
         $this->newLine();
     }
 
     /**
-     * Display benchmark results
+     * Display iteration results with statistics
      */
-    protected function displayResults(string $name, array $results, array $options): void
+    protected function displayIterationResults(string $name, IterationResult $stats, $advisor_report): void
     {
         $this->newLine();
         $this->info('╔════════════════════════════════════════════════════════════╗');
-        $this->info('║                    BENCHMARK RESULTS                       ║');
-        $this->info('╠════════════════════════════════════════════════════════════╣');
-        $this->info('║  Execution Time:     '.str_pad($this->formatTime($results['execution_time']), 37).'║');
-        $this->info('║  Memory Used:        '.str_pad($this->formatMemory($results['memory_used']), 37).'║');
-        $this->info('║  Peak Memory:        '.str_pad($this->formatMemory($results['peak_memory']), 37).'║');
+        $this->info('║        BENCHMARK RESULTS ('.str_pad($stats->execution_time->iterations.' iterations)', 31).'║');
         $this->info('╚════════════════════════════════════════════════════════════╝');
+        $this->newLine();
+
+        // Show individual runs if configured
+        if (config('benchmark.iterations.show_individual', true) && $stats->execution_time->iterations <= 10) {
+            $this->line('<fg=cyan>Individual Runs:</>');
+            $run_times = array_map(
+                fn ($t) => $this->formatTime($t),
+                $stats->execution_time->all_values
+            );
+            $this->line('  '.implode('  |  ', $run_times));
+            $this->newLine();
+        }
+
+        // Statistics table
+        $this->line('<fg=cyan>Statistics:</>');
+
+        $variance_color = $stats->execution_time->std_deviation_percent > config('benchmark.iterations.variance_warning_threshold', 15)
+            ? 'yellow'
+            : 'green';
+
+        $this->table(
+            ['Metric', 'Value'],
+            [
+                ['Average', $this->formatTime($stats->execution_time->average)],
+                ['Median', '<fg=white;options=bold>'.$this->formatTime($stats->execution_time->median).'</> (used for baseline)'],
+                ['Min / Max', $this->formatTime($stats->execution_time->min).' / '.$this->formatTime($stats->execution_time->max)],
+                ['Std Deviation', sprintf('<fg=%s>±%s (%.1f%%)</>', $variance_color, $this->formatTime($stats->execution_time->std_deviation), $stats->execution_time->std_deviation_percent)],
+                ['P95', $this->formatTime($stats->execution_time->p95)],
+                ['Stability', '<fg='.($stats->execution_time->isStable() ? 'green' : 'yellow').'>'.$stats->execution_time->getStabilityAssessment().'</>'],
+            ]
+        );
+
+        // Memory stats
+        $this->newLine();
+        $this->line('<fg=cyan>Memory (Peak):</>');
+        $this->table(
+            ['Metric', 'Value'],
+            [
+                ['Average', $this->formatMemory((int) $stats->peak_memory->average)],
+                ['Median', $this->formatMemory((int) $stats->peak_memory->median)],
+                ['Min / Max', $this->formatMemory((int) $stats->peak_memory->min).' / '.$this->formatMemory((int) $stats->peak_memory->max)],
+            ]
+        );
+
+        // Performance score stats if available
+        if ($stats->performance_score->average > 0) {
+            $this->newLine();
+            $this->line('<fg=cyan>Performance Score:</>');
+            $this->table(
+                ['Metric', 'Value'],
+                [
+                    ['Average', sprintf('%.0f/100', $stats->performance_score->average)],
+                    ['Median', sprintf('%.0f/100', $stats->performance_score->median)],
+                    ['Min / Max', sprintf('%.0f / %.0f', $stats->performance_score->min, $stats->performance_score->max)],
+                ]
+            );
+        }
+
+        // Variance warning
+        if ($stats->execution_time->std_deviation_percent > config('benchmark.iterations.variance_warning_threshold', 15)) {
+            $this->newLine();
+            $this->warn('⚠️  High variance detected ('.round($stats->execution_time->std_deviation_percent, 1).'%). Results may be unstable.');
+            $this->line('   Consider running with more iterations: --iterations=10');
+        }
     }
 
     /**
@@ -477,11 +641,11 @@ class DynamicBenchmarkCommand extends Command
     protected function formatTime(float $seconds): string
     {
         if ($seconds < 1) {
-            return round($seconds * 1000, 2).' ms';
+            return round($seconds * 1000, 2).'ms';
         }
 
         if ($seconds < 60) {
-            return round($seconds, 2).' s';
+            return round($seconds, 2).'s';
         }
 
         $minutes = floor($seconds / 60);

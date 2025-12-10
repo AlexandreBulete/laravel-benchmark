@@ -37,6 +37,7 @@ class ListBaselinesCommand extends Command
             return [
                 $baseline->benchmark_name,
                 $this->formatTime($baseline->execution_time),
+                $baseline->iterations.'x',
                 $baseline->performance_score.'/100',
                 number_format($baseline->total_queries),
                 $baseline->git_branch ?? 'N/A',
@@ -45,7 +46,7 @@ class ListBaselinesCommand extends Command
         })->toArray();
 
         $this->table(
-            ['Benchmark', 'Time', 'Score', 'Queries', 'Branch', 'Created'],
+            ['Benchmark', 'Time (median)', 'Iterations', 'Score', 'Queries', 'Branch', 'Created'],
             $rows
         );
 

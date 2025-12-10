@@ -16,6 +16,7 @@ A comprehensive benchmark system for Laravel applications. Safely test performan
 - ⚡ **Dynamic Commands** - Auto-generate CLI commands with custom options
 - 🧠 **Advisor** - Automatic N+1 detection, slow query alerts, and optimization suggestions
 - 📈 **Baseline & Regression** - Save baselines and detect performance regressions
+- 🔄 **Multiple Iterations** - Run benchmarks multiple times for stable, statistically meaningful results
 
 ## Requirements
 
@@ -80,6 +81,129 @@ php artisan benchmark:users --count=10000
 # Or using generic command
 php artisan benchmark:run UserProcessingBenchmark
 ```
+
+## 🔄 Multiple Iterations - Stable & Reliable Results
+
+By default, benchmarks run **5 iterations** to provide statistically stable results. This eliminates variance from garbage collection, CPU cache, and other system factors.
+
+### Why Multiple Iterations?
+
+A single benchmark run can be misleading due to:
+- ❄️ **Cold cache** on first run
+- 🗑️ **Garbage collection** pauses
+- 💻 **CPU scheduling** variations
+- 🔄 **I/O fluctuations**
+
+Running multiple iterations and using the **median** provides much more reliable results.
+
+### Sample Output
+
+```
+╔════════════════════════════════════════════════════════════╗
+║        BENCHMARK RESULTS (5 iterations)                    ║
+╚════════════════════════════════════════════════════════════╝
+
+Individual Runs:
+  3.42s  |  3.61s  |  3.38s  |  3.55s  |  3.41s
+
+Statistics:
++---------------+----------------------------------------+
+| Metric        | Value                                  |
++---------------+----------------------------------------+
+| Average       | 3.47s                                  |
+| Median        | 3.42s (used for baseline)              |
+| Min / Max     | 3.38s / 3.61s                          |
+| Std Deviation | ±0.09s (2.6%)                          |
+| P95           | 3.58s                                  |
+| Stability     | Very Stable                            |
++---------------+----------------------------------------+
+```
+
+### Controlling Iterations
+
+```bash
+# Override default iterations
+php artisan benchmark:users --iterations=10
+
+# Add warmup runs (discarded from stats)
+php artisan benchmark:users --iterations=5 --warmup=2
+```
+
+### Warmup Runs
+
+Warmup runs execute the benchmark but discard results - useful for:
+- Filling CPU caches
+- JIT compilation warmup
+- Database connection pooling
+
+```bash
+# 5 measured runs + 2 warmup (7 total runs, first 2 discarded)
+php artisan benchmark:users --iterations=5 --warmup=2
+```
+
+```
+  [WARMUP] Running iteration W1...
+       ○ 4.12s (discarded)
+  [WARMUP] Running iteration W2...
+       ○ 3.89s (discarded)
+  [RUN] Running iteration 1...
+       ✓ 3.42s | Memory: 35.1 MB | Score: 72/100
+  [RUN] Running iteration 2...
+       ✓ 3.38s | Memory: 34.8 MB | Score: 74/100
+  ...
+```
+
+### Statistics Provided
+
+| Metric | Description |
+|--------|-------------|
+| **Average** | Mean of all runs |
+| **Median** | Middle value (used for baselines) |
+| **Min / Max** | Range of results |
+| **Std Deviation** | Variance measure (±value and %) |
+| **P95 / P99** | 95th/99th percentile |
+| **Stability** | Assessment based on variance |
+
+**Stability Grades:**
+- `Very Stable` (< 5% variance)
+- `Stable` (< 10% variance)
+- `Moderate Variance` (< 20% variance)
+- `High Variance` (> 20% variance)
+
+### Configuration
+
+In `config/benchmark.php`:
+
+```php
+'iterations' => [
+    // Default number of iterations
+    'default' => env('BENCHMARK_ITERATIONS', 5),
+    
+    // Bounds
+    'min' => 1,
+    'max' => 100,
+    
+    // Default warmup runs
+    'warmup' => env('BENCHMARK_WARMUP', 0),
+    
+    // Show individual run times
+    'show_individual' => true,
+    
+    // Warn if variance exceeds this %
+    'variance_warning_threshold' => 15,
+],
+```
+
+### High Variance Warning
+
+When results are unstable, you'll see a warning:
+
+```
+⚠️  High variance detected (18.3%). Results may be unstable.
+   Consider running with more iterations: --iterations=10
+```
+
+This helps you know when your benchmark environment may be affecting results.
 
 ## 🧠 Advisor - Intelligent Query Analysis
 
@@ -399,8 +523,8 @@ Save current benchmark results as a reference point using `--baseline`:
 # Using dynamic command (recommended)
 php artisan benchmark:notifications --users=100 --baseline
 
-# Or using generic command
-php artisan benchmark:baseline NotificationProcessingBenchmark
+# With more iterations for better accuracy
+php artisan benchmark:notifications --users=100 --iterations=10 --baseline
 ```
 
 ```
@@ -408,18 +532,22 @@ php artisan benchmark:baseline NotificationProcessingBenchmark
 ║                    BASELINE SAVED                          ║
 ╚════════════════════════════════════════════════════════════╝
 
-+-------------------+------------------------------------------+
-| Benchmark         | NotificationProcessingBenchmark          |
-| Execution Time    | 3.61 s                                   |
-| Peak Memory       | 35.1 MB                                  |
-| Total Queries     | 1,401                                    |
-| Performance Score | 45/100                                   |
-| Git Branch        | feature/notifications                    |
-| Git Commit        | a1b2c3d                                  |
-+-------------------+------------------------------------------+
++-------------------------+------------------------------------------+
+| Benchmark               | NotificationProcessingBenchmark          |
+| Iterations              | 5                                        |
+| Execution Time (median) | 3.42 s                                   |
+| Std Deviation           | ±0.09s (2.6%)                            |
+| Peak Memory             | 35.1 MB                                  |
+| Total Queries           | 1,401                                    |
+| Performance Score       | 45/100                                   |
+| Git Branch              | feature/notifications                    |
+| Git Commit              | a1b2c3d                                  |
++-------------------------+------------------------------------------+
 
 Saved to: tests/Benchmark/baselines/notificationprocessingbenchmark.baseline.json
 ```
+
+**Note:** Baselines store the **median** execution time from all iterations - the most stable metric for comparisons.
 
 ### Compare Against Baseline
 
@@ -428,9 +556,6 @@ Run benchmark and compare to saved baseline using `--compare`:
 ```bash
 # Using dynamic command (recommended)
 php artisan benchmark:notifications --users=100 --compare
-
-# Or using generic command
-php artisan benchmark:compare NotificationProcessingBenchmark
 ```
 
 ```
@@ -440,7 +565,7 @@ php artisan benchmark:compare NotificationProcessingBenchmark
 
   🚀 Performance Improved
 
-Metrics Comparison:
+Metrics Comparison (median values):
 +-------------------+----------+----------+--------+
 | Metric            | Baseline | Current  | Change |
 +-------------------+----------+----------+--------+
@@ -502,12 +627,12 @@ php artisan benchmark:baselines
 ```
 
 ```
-+--------------------------------+--------+--------+---------+----------------------+------------+
-| Benchmark                      | Time   | Score  | Queries | Branch               | Created    |
-+--------------------------------+--------+--------+---------+----------------------+------------+
-| NotificationProcessingBenchmark| 3.61s  | 45/100 | 1,401   | feature/notifications| 2 days ago |
-| UserProcessingBenchmark        | 1.23s  | 82/100 | 234     | main                 | 1 week ago |
-+--------------------------------+--------+--------+---------+----------------------+------------+
++--------------------------------+---------------+------------+--------+---------+----------------------+------------+
+| Benchmark                      | Time (median) | Iterations | Score  | Queries | Branch               | Created    |
++--------------------------------+---------------+------------+--------+---------+----------------------+------------+
+| NotificationProcessingBenchmark| 3.42s         | 5x         | 45/100 | 1,401   | feature/notifications| 2 days ago |
+| UserProcessingBenchmark        | 1.23s         | 10x        | 82/100 | 234     | main                 | 1 week ago |
++--------------------------------+---------------+------------+--------+---------+----------------------+------------+
 ```
 
 ### Configure Thresholds
@@ -534,11 +659,11 @@ In `config/benchmark.php`:
 | `benchmark:list` | List all available benchmarks with codes |
 | `benchmark:run {name}` | Run a benchmark by class name |
 | `benchmark:{code}` | Run a benchmark with custom options (auto-generated) |
+| `benchmark:{code} --iterations=N` | Run N iterations (default: 5) |
+| `benchmark:{code} --warmup=N` | Discard first N runs as warmup |
 | `benchmark:{code} --baseline` | Run and save results as baseline |
 | `benchmark:{code} --compare` | Run and compare against baseline |
 | `benchmark:{code} --fail-on-regression` | Fail on critical regression (CI) |
-| `benchmark:baseline {name}` | Save benchmark results as baseline (alternative) |
-| `benchmark:compare {name}` | Compare current run against baseline (alternative) |
 | `benchmark:baselines` | List all saved baselines |
 | `make:benchmark {name}` | Create a new benchmark class |
 | `make:benchmark {name} --code={code}` | Create a benchmark with dynamic command |
