@@ -1,6 +1,6 @@
 # Laravel Benchmark
 
-A comprehensive benchmark system for Laravel applications. Safely test performance with isolated database, automatic cleanup, production protection, and **dynamic command generation**.
+A comprehensive benchmark system for Laravel applications. Safely test performance with isolated database, automatic cleanup, production protection, **dynamic command generation**, and **intelligent optimization suggestions**.
 
 [![Latest Stable Version](https://poser.pugx.org/alexandrebulete/laravel-benchmark/v/stable)](https://packagist.org/packages/alexandrebulete/laravel-benchmark)
 [![License](https://poser.pugx.org/alexandrebulete/laravel-benchmark/license)](https://packagist.org/packages/alexandrebulete/laravel-benchmark)
@@ -14,6 +14,7 @@ A comprehensive benchmark system for Laravel applications. Safely test performan
 - 🛠️ **Artisan Commands** - Easy-to-use CLI for creating and running benchmarks
 - 🧹 **Auto Cleanup** - Database is wiped after each benchmark
 - ⚡ **Dynamic Commands** - Auto-generate CLI commands with custom options
+- 🧠 **Advisor** - Automatic N+1 detection, slow query alerts, and optimization suggestions
 
 ## Requirements
 
@@ -79,6 +80,122 @@ php artisan benchmark:users --count=10000
 php artisan benchmark:run UserProcessingBenchmark
 ```
 
+## 🧠 Advisor - Intelligent Query Analysis
+
+The Advisor automatically analyzes all SQL queries during your benchmark and provides actionable optimization suggestions.
+
+### What it detects
+
+| Rule | Description |
+|------|-------------|
+| **N+1 Queries** | Same query pattern executed multiple times |
+| **Slow Queries** | Individual queries exceeding time threshold |
+| **Hotspots** | Code locations generating most DB activity |
+| **Duplicates** | Exact same queries executed multiple times |
+
+### Sample Output
+
+```
+╔════════════════════════════════════════════════════════════════╗
+║                    📊 ADVISOR REPORT                           ║
+╚════════════════════════════════════════════════════════════════╝
+
+Database Statistics:
+┌──────────────────┬─────────────┐
+│ Total Queries    │ 3,542       │
+│ Unique Queries   │ 12          │
+│ Total DB Time    │ 4.52s       │
+│ DB Time %        │ 78.3%       │
+└──────────────────┴─────────────┘
+
+Issues Found:
+  🔴 2 critical  ⚠️  5 warnings  ℹ️  3 info
+
+Optimization Suggestions:
+
+🔴 [n_plus_one] Possible N+1 Query
+   500 identical queries executed (total: 2450.32ms, avg: 4.90ms)
+   📍 App\Services\UserService::loadProfiles()
+   💡 Consider eager loading with ->with('profile') or ->load('profile')
+   SQL: SELECT * FROM `profiles` WHERE `user_id` = ?...
+
+⚠️  [slow_query] Slow Query Detected
+   Query took 892.45ms (threshold: 100ms)
+   📍 App\Jobs\ProcessOrders::handle()
+   💡 Consider adding an index on column 'created_at'
+   💡 Ensure columns in ORDER BY clause are indexed
+   SQL: SELECT * FROM `orders` WHERE `status` = ? ORDER BY...
+
+⚠️  [hotspot] Database Hotspot
+   2,100 queries (59.3% of total), 3.21s (71.0% of DB time)
+   📍 App\Services\NotificationService::processAll()
+   💡 This location generates a large number of queries
+   💡 Consider batching operations or using bulk queries
+
+Top 5 Locations by Query Count:
+┌─────────────────────────────────────────┬─────────┬──────────┐
+│ Location                                │ Queries │ Time     │
+├─────────────────────────────────────────┼─────────┼──────────┤
+│ NotificationService::processAll()       │ 2,100   │ 3.21s    │
+│ UserService::loadProfiles()             │ 500     │ 2.45s    │
+│ OrderRepository::findByUser()           │ 342     │ 0.89s    │
+└─────────────────────────────────────────┴─────────┴──────────┘
+```
+
+### Disabling Advisor
+
+```php
+class MyBenchmark extends BenchmarkCase
+{
+    // Disable for this specific benchmark
+    protected bool $withAdvisor = false;
+    
+    // Or disable at runtime
+    public function benchmark(): void
+    {
+        $this->withAdvisor(false);
+    }
+}
+```
+
+Or globally via environment:
+
+```env
+BENCHMARK_ADVISOR_ENABLED=false
+```
+
+### Configuring Thresholds
+
+In `config/benchmark.php`:
+
+```php
+'advisor' => [
+    'enabled' => true,
+    'rules' => [
+        'n_plus_one' => [
+            'enabled' => true,
+            'threshold' => 10,          // Min similar queries to flag
+            'critical_count' => 100,    // Count for critical severity
+            'critical_time_ms' => 1000, // Time for critical severity
+        ],
+        'slow_query' => [
+            'enabled' => true,
+            'threshold_ms' => 100,      // Warning threshold
+            'critical_ms' => 1000,      // Critical threshold
+        ],
+        'hotspot' => [
+            'enabled' => true,
+            'threshold_percent' => 50,  // % of queries/time
+            'min_queries' => 10,        // Min queries to analyze
+        ],
+        'duplicate' => [
+            'enabled' => true,
+            'threshold' => 2,           // Min duplicates to flag
+        ],
+    ],
+],
+```
+
 ## Dynamic Commands
 
 The killer feature! Define `$code` and `$options` in your benchmark class, and a CLI command is **automatically generated**.
@@ -131,6 +248,11 @@ return [
 
     'namespace' => 'Tests\\Benchmark\\Suites',
     'path' => 'tests/Benchmark/Suites',
+    
+    'advisor' => [
+        'enabled' => true,
+        // ... rule configurations
+    ],
 ];
 ```
 
@@ -138,6 +260,7 @@ return [
 
 ```env
 BENCHMARK_ENABLED=true
+BENCHMARK_ADVISOR_ENABLED=true
 DB_BENCHMARK_HOST=db_benchmark
 DB_BENCHMARK_PORT=3306
 DB_BENCHMARK_DATABASE=benchmark
@@ -200,6 +323,7 @@ class UserProcessingBenchmark extends BenchmarkCase
     {
         $this->info('🚀 Processing users...');
 
+        // The Advisor will automatically track all queries here
         app(UserService::class)->processAll($this->batchSize);
 
         $this->info('✅ Done!');

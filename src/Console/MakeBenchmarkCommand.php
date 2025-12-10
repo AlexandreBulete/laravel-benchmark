@@ -72,7 +72,7 @@ class MakeBenchmarkCommand extends GeneratorCommand
         if ($code) {
             // Replace null with the actual code
             $stub = str_replace(
-                "protected static ?string \$code = null;",
+                'protected static ?string $code = null;',
                 "protected static ?string \$code = '{$code}';",
                 $stub
             );

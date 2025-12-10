@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace AlexandreBulete\Benchmark;
 
+use AlexandreBulete\Benchmark\Advisor\Advisor;
+use AlexandreBulete\Benchmark\Advisor\AdvisorReportRenderer;
+use AlexandreBulete\Benchmark\Advisor\DTO\AdvisorReport;
 use AlexandreBulete\Benchmark\Concerns\IsNotProductionEnvironment;
 use AlexandreBulete\Benchmark\Concerns\UsesBenchmarkDatabase;
 use Illuminate\Console\Command;
@@ -46,6 +49,21 @@ abstract class BenchmarkCase
      * Configured options values
      */
     protected array $configuredOptions = [];
+
+    /**
+     * The Advisor instance for query analysis
+     */
+    protected ?Advisor $advisor = null;
+
+    /**
+     * The Advisor report after benchmark execution
+     */
+    protected ?AdvisorReport $advisorReport = null;
+
+    /**
+     * Whether the Advisor is enabled for this benchmark
+     */
+    protected bool $withAdvisor = true;
 
     /**
      * Get the command code for dynamic registration
@@ -135,6 +153,16 @@ abstract class BenchmarkCase
     }
 
     /**
+     * Enable or disable the Advisor
+     */
+    public function withAdvisor(bool $enabled = true): self
+    {
+        $this->withAdvisor = $enabled;
+
+        return $this;
+    }
+
+    /**
      * Run the benchmark with setup and teardown
      */
     public function run(): array
@@ -142,17 +170,70 @@ abstract class BenchmarkCase
         $this->ensureNotProductionEnvironment();
         $this->ensureBenchmarkEnabled();
 
+        // Initialize Advisor if enabled
+        $this->setUpAdvisor();
+
         $this->setUp();
 
         try {
             $this->startMeasuring();
+
+            // Start collecting queries
+            $this->advisor?->start();
+
             $this->benchmark();
+
+            // Stop collecting and get report
+            $this->advisorReport = $this->advisor?->stop();
+
             $results = $this->stopMeasuring();
         } finally {
             $this->tearDown();
         }
 
+        // Render Advisor report if available
+        $this->renderAdvisorReport($results);
+
         return $results;
+    }
+
+    /**
+     * Set up the Advisor
+     */
+    protected function setUpAdvisor(): void
+    {
+        if (! $this->withAdvisor) {
+            return;
+        }
+
+        $advisor_enabled = config('benchmark.advisor.enabled', true);
+
+        if (! $advisor_enabled) {
+            return;
+        }
+
+        $this->advisor = new Advisor;
+    }
+
+    /**
+     * Render the Advisor report
+     */
+    protected function renderAdvisorReport(array $results): void
+    {
+        if (! $this->advisorReport || ! $this->command) {
+            return;
+        }
+
+        $renderer = new AdvisorReportRenderer($this->command);
+        $renderer->render($this->advisorReport, $results['execution_time']);
+    }
+
+    /**
+     * Get the Advisor report (useful for programmatic access)
+     */
+    public function getAdvisorReport(): ?AdvisorReport
+    {
+        return $this->advisorReport;
     }
 
     /**
