@@ -15,6 +15,7 @@ A comprehensive benchmark system for Laravel applications. Safely test performan
 - 🧹 **Auto Cleanup** - Database is wiped after each benchmark
 - ⚡ **Dynamic Commands** - Auto-generate CLI commands with custom options
 - 🧠 **Advisor** - Automatic N+1 detection, slow query alerts, and optimization suggestions
+- 📈 **Baseline & Regression** - Save baselines and detect performance regressions
 
 ## Requirements
 
@@ -386,6 +387,145 @@ php artisan benchmark:users --count=50000 --batch=500
 php artisan benchmark:run UserProcessingBenchmark
 ```
 
+## 📈 Baseline & Regression Detection
+
+Track performance over time and detect regressions before they reach production.
+
+### Save a Baseline
+
+Save current benchmark results as a reference point using `--baseline`:
+
+```bash
+# Using dynamic command (recommended)
+php artisan benchmark:notifications --users=100 --baseline
+
+# Or using generic command
+php artisan benchmark:baseline NotificationProcessingBenchmark
+```
+
+```
+╔════════════════════════════════════════════════════════════╗
+║                    BASELINE SAVED                          ║
+╚════════════════════════════════════════════════════════════╝
+
++-------------------+------------------------------------------+
+| Benchmark         | NotificationProcessingBenchmark          |
+| Execution Time    | 3.61 s                                   |
+| Peak Memory       | 35.1 MB                                  |
+| Total Queries     | 1,401                                    |
+| Performance Score | 45/100                                   |
+| Git Branch        | feature/notifications                    |
+| Git Commit        | a1b2c3d                                  |
++-------------------+------------------------------------------+
+
+Saved to: tests/Benchmark/baselines/notificationprocessingbenchmark.baseline.json
+```
+
+### Compare Against Baseline
+
+Run benchmark and compare to saved baseline using `--compare`:
+
+```bash
+# Using dynamic command (recommended)
+php artisan benchmark:notifications --users=100 --compare
+
+# Or using generic command
+php artisan benchmark:compare NotificationProcessingBenchmark
+```
+
+```
+╔════════════════════════════════════════════════════════════╗
+║                 BASELINE COMPARISON                        ║
+╚════════════════════════════════════════════════════════════╝
+
+  🚀 Performance Improved
+
+Metrics Comparison:
++-------------------+----------+----------+--------+
+| Metric            | Baseline | Current  | Change |
++-------------------+----------+----------+--------+
+| Execution Time    | 3.61s    | 2.45s    | -32.1% |
+| Peak Memory       | 35.1 MB  | 34.8 MB  | ~      |
+| Query Count       | 1,401    | 542      | -61.3% |
+| Performance Score | 45/100   | 78/100   | +33    |
++-------------------+----------+----------+--------+
+
+Improvements:
+  🚀 Execution Time: 3.61s → 2.45s (-32.1%)
+  🚀 Query Count: 1,401 → 542 (-61.3%)
+  🚀 Performance Score: 45/100 → 78/100 (+33)
+
+Baseline: feature/notifications@a1b2c3d
+Current:  main@d4e5f6g
+```
+
+### Regression Detection
+
+When performance degrades:
+
+```
+  🔴 REGRESSION DETECTED
+
+Regressions Detected:
+  🔴 Execution Time: 2.45s → 4.12s (+68.2%)
+  ⚠️  Query Count: 542 → 890 (+64.2%)
+```
+
+### CI/CD Integration
+
+Export results as JSON and fail builds on critical regressions:
+
+```bash
+# Using dynamic command (recommended)
+php artisan benchmark:notifications \
+    --compare \
+    --export=benchmark-results.json \
+    --fail-on-regression
+
+# Or using generic command
+php artisan benchmark:compare NotificationProcessingBenchmark \
+    --export=benchmark-results.json \
+    --fail-on-regression
+```
+
+In your CI pipeline (GitHub Actions example):
+
+```yaml
+- name: Run Performance Check
+  run: php artisan benchmark:notifications --compare --fail-on-regression
+```
+
+### List Saved Baselines
+
+```bash
+php artisan benchmark:baselines
+```
+
+```
++--------------------------------+--------+--------+---------+----------------------+------------+
+| Benchmark                      | Time   | Score  | Queries | Branch               | Created    |
++--------------------------------+--------+--------+---------+----------------------+------------+
+| NotificationProcessingBenchmark| 3.61s  | 45/100 | 1,401   | feature/notifications| 2 days ago |
+| UserProcessingBenchmark        | 1.23s  | 82/100 | 234     | main                 | 1 week ago |
++--------------------------------+--------+--------+---------+----------------------+------------+
+```
+
+### Configure Thresholds
+
+In `config/benchmark.php`:
+
+```php
+'baseline' => [
+    'path' => 'tests/Benchmark/baselines',
+    'thresholds' => [
+        'execution_time' => ['warning' => 10, 'critical' => 25], // %
+        'memory' => ['warning' => 15, 'critical' => 30],
+        'queries' => ['warning' => 20, 'critical' => 50],
+        'score' => ['warning' => 10, 'critical' => 20],
+    ],
+],
+```
+
 ## Available Commands
 
 | Command | Description |
@@ -394,6 +534,12 @@ php artisan benchmark:run UserProcessingBenchmark
 | `benchmark:list` | List all available benchmarks with codes |
 | `benchmark:run {name}` | Run a benchmark by class name |
 | `benchmark:{code}` | Run a benchmark with custom options (auto-generated) |
+| `benchmark:{code} --baseline` | Run and save results as baseline |
+| `benchmark:{code} --compare` | Run and compare against baseline |
+| `benchmark:{code} --fail-on-regression` | Fail on critical regression (CI) |
+| `benchmark:baseline {name}` | Save benchmark results as baseline (alternative) |
+| `benchmark:compare {name}` | Compare current run against baseline (alternative) |
+| `benchmark:baselines` | List all saved baselines |
 | `make:benchmark {name}` | Create a new benchmark class |
 | `make:benchmark {name} --code={code}` | Create a benchmark with dynamic command |
 | `make:benchmark-seeder {name}` | Create a new benchmark seeder |

@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace AlexandreBulete\Benchmark;
 
+use AlexandreBulete\Benchmark\Baseline\BaselineStorage;
+use AlexandreBulete\Benchmark\Console\CompareBaselineCommand;
 use AlexandreBulete\Benchmark\Console\DynamicBenchmarkCommand;
 use AlexandreBulete\Benchmark\Console\InstallBenchmarkCommand;
+use AlexandreBulete\Benchmark\Console\ListBaselinesCommand;
 use AlexandreBulete\Benchmark\Console\ListBenchmarksCommand;
 use AlexandreBulete\Benchmark\Console\MakeBenchmarkCommand;
 use AlexandreBulete\Benchmark\Console\MakeBenchmarkSeederCommand;
 use AlexandreBulete\Benchmark\Console\RunBenchmarkCommand;
+use AlexandreBulete\Benchmark\Console\SaveBaselineCommand;
 use Illuminate\Console\Application as Artisan;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -31,6 +35,11 @@ class BenchmarkServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
+        // Register BaselineStorage as singleton
+        $this->app->singleton(BaselineStorage::class, function () {
+            return new BaselineStorage;
+        });
+
         // Always register the install command (needed to set up the package)
         $this->commands([
             InstallBenchmarkCommand::class,
@@ -43,6 +52,9 @@ class BenchmarkServiceProvider extends PackageServiceProvider
                 ListBenchmarksCommand::class,
                 MakeBenchmarkCommand::class,
                 MakeBenchmarkSeederCommand::class,
+                SaveBaselineCommand::class,
+                CompareBaselineCommand::class,
+                ListBaselinesCommand::class,
             ]);
         }
     }

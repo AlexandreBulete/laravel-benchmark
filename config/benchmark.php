@@ -169,4 +169,51 @@ return [
             'show_savings' => true,
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Baseline Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure baseline storage and regression detection thresholds.
+    | Baselines allow you to save benchmark results and compare future runs.
+    |
+    */
+    'baseline' => [
+        // Path to store baseline JSON files
+        'path' => env('BENCHMARK_BASELINE_PATH', 'tests/Benchmark/baselines'),
+
+        /*
+        |----------------------------------------------------------------------
+        | Regression Thresholds
+        |----------------------------------------------------------------------
+        |
+        | Define percentage thresholds for detecting performance regressions.
+        | When current results exceed baseline by these percentages, warnings
+        | or errors will be triggered.
+        |
+        */
+        'thresholds' => [
+            // Execution time regression thresholds (percentage increase)
+            'execution_time' => [
+                'warning' => 10,   // +10% triggers warning
+                'critical' => 25,  // +25% triggers critical
+            ],
+            // Memory usage regression thresholds
+            'memory' => [
+                'warning' => 15,
+                'critical' => 30,
+            ],
+            // Query count regression thresholds
+            'queries' => [
+                'warning' => 20,
+                'critical' => 50,
+            ],
+            // Performance score drop thresholds
+            'score' => [
+                'warning' => 10,
+                'critical' => 20,
+            ],
+        ],
+    ],
 ];
