@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Illuminate\Support\Facades\DB;
+
+class {{ class }}
+{
+    /**
+     * Seed benchmark data
+     *
+     * @param  int  $count  Number of records to create
+     */
+    public function seed(int $count = 10000): void
+    {
+        // Disable query log to save memory
+        DB::disableQueryLog();
+
+        // Use chunks to avoid memory issues
+        $chunkSize = 1000;
+
+        for ($i = 0; $i < $count; $i += $chunkSize) {
+            $batchSize = min($chunkSize, $count - $i);
+            $this->seedBatch($batchSize);
+        }
+    }
+
+    /**
+     * Seed a batch of records
+     */
+    protected function seedBatch(int $count): void
+    {
+        // Example implementation:
+        // User::factory()
+        //     ->count($count)
+        //     ->create()
+        //     ->each(function (User $user) {
+        //         // Create related records
+        //     });
+    }
+}
+

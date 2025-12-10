@@ -1,0 +1,54 @@
+{
+    "name": "alexandrebulete/laravel-benchmark",
+    "description": "A comprehensive benchmark system for Laravel applications",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "benchmark", "performance", "testing"],
+    "authors": [
+        {
+            "name": "Alexandre Bulete",
+            "email": "bulete.alexandre@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "AlexandreBulete\\Benchmark\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AlexandreBulete\\Benchmark\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^10.0 || ^11.0 || ^12.0",
+        "illuminate/contracts": "^10.0 || ^11.0 || ^12.0",
+        "illuminate/database": "^10.0 || ^11.0 || ^12.0",
+        "illuminate/support": "^10.0 || ^11.0 || ^12.0",
+        "spatie/laravel-package-tools": "^1.16"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0 || ^9.0 || ^10.0",
+        "pestphp/pest": "^2.0 || ^3.0",
+        "pestphp/pest-plugin-laravel": "^2.0 || ^3.0",
+        "phpunit/phpunit": "^10.0 || ^11.0",
+        "laravel/pint": "^1.24",
+        "phpstan/phpstan": "^2.1"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AlexandreBulete\\Benchmark\\BenchmarkServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}

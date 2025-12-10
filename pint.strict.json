@@ -1,0 +1,24 @@
+{
+    "preset": "laravel",
+    "rules": {
+        "final_class": true,
+        "declare_strict_types": true,
+        "phpdoc_separation": false,
+        "concat_space": {
+            "spacing": "one"
+        },
+        "class_attributes_separation": {
+            "elements": {
+                "const": "only_if_meta"
+            }
+        },
+        "binary_operator_spaces": {
+            "default": "single_space",
+            "operators": {
+                "=>": "align_single_space_minimal",
+                "=": "align_single_space_minimal"
+            }
+        },
+        "no_superfluous_phpdoc_tags": false
+    }
+}

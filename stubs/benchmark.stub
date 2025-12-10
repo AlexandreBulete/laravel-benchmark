@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use AlexandreBulete\Benchmark\BenchmarkCase;
+
+class {{ class }} extends BenchmarkCase
+{
+    /**
+     * Get the benchmark description
+     */
+    public function getDescription(): string
+    {
+        return 'Describe what this benchmark tests';
+    }
+
+    /**
+     * Set up the benchmark environment
+     * Use this method to seed data or configure dependencies
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Seed your benchmark data here
+        // Example:
+        // $seeder = new MyBenchmarkSeeder();
+        // $seeder->seed(count: 10000);
+    }
+
+    /**
+     * The actual benchmark logic
+     * This method will be measured for execution time and memory usage
+     */
+    public function benchmark(): void
+    {
+        $this->info('Running benchmark...');
+
+        // Your benchmark logic here
+        // Example:
+        // $service = app(MyService::class);
+        // $service->processAll();
+
+        $this->info('Benchmark completed!');
+    }
+}
+
