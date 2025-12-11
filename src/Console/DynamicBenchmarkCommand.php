@@ -117,7 +117,7 @@ class DynamicBenchmarkCommand extends Command
             );
         }
 
-        return config('benchmark.iterations.default', 5);
+        return (int) config('benchmark.iterations.default', 5);
     }
 
     /**
@@ -131,7 +131,7 @@ class DynamicBenchmarkCommand extends Command
             return max(0, (int) $cli_value);
         }
 
-        return config('benchmark.iterations.warmup', 0);
+        return (int) config('benchmark.iterations.warmup', 0);
     }
 
     /**
